@@ -7,7 +7,7 @@ sys.path.append(os.pardir)
 
 from dataset.mnist import load_mnist
 
-# (x_train, t_train), (x_test, t_test) = load_mnist(flatten=True, normalize=True, one_hot_label=True)
+(x_train, t_train), (x_test, t_test) = load_mnist(flatten=True, normalize=True, one_hot_label=True)
 
 # network = pickle.load(open("../ch03/sample_weight.pkl", "rb"))
 
@@ -24,9 +24,27 @@ from dataset.mnist import load_mnist
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
+# Copy-and-paste
+def sigmoid_grad(x):
+    return (1.0 - sigmoid(x)) * sigmoid(x)
+
+# def softmax(x):
+#     c = np.max(x)
+#     return np.exp(x - c) / np.sum(np.exp(x - c))
+
+
+# ブロードキャストは列になされる
 def softmax(x):
-    c = np.max(x)
-    return np.exp(x - c) / np.sum(np.exp(x - c))
+    if x.ndim == 2:
+        # 列にテストケース
+        x = x.T
+        x = x - np.max(x, axis=0)
+        y = np.exp(x) / np.sum(np.exp(x), axis=0)
+        return y.T
+
+    y = x
+    y = y - np.max(y)
+    return np.exp(y) / np.sum(np.exp(y))
 
 def mean_squared_error(y, t):
     return 0.5 * np.sum((y - t)** 2)
@@ -102,6 +120,83 @@ class TwoLayerNet:
     def loss(self, x, t):
         y = self.predict(x)
         return cross_entropy_error(y, t)
+
+    def accuracy(self, x, t):
+        y = self.predict(x)
+        y = np.argmax(y, axis=1)
+        t = np.argmax(t, axis=1)
+        acc = np.sum(y == t) / float(x.shape[0])
+        return acc
+
+    def numerical_gradient(self, x, t):
+        lw = lambda w: self.loss(x, t)
+
+        grads = {}
+        params = ["W1", "b1", "W2", "b2"]
+        for p in params:
+            grads[p] = numerical_gradient(lw, self.params[p])
+
+        return grads
+
+    # Copy-and-paste
+    def gradient(self, x, t):
+        W1, W2 = self.params['W1'], self.params['W2']
+        b1, b2 = self.params['b1'], self.params['b2']
+        grads = {}
+        
+        batch_num = x.shape[0]
+        
+        # forward
+        a1 = np.dot(x, W1) + b1
+        z1 = sigmoid(a1)
+        a2 = np.dot(z1, W2) + b2
+        y = softmax(a2)
+        
+        # backward
+        dy = (y - t) / batch_num
+        grads['W2'] = np.dot(z1.T, dy)
+        grads['b2'] = np.sum(dy, axis=0)
+        
+        dz1 = np.dot(dy, W2.T)
+        da1 = sigmoid_grad(a1) * dz1
+        grads['W1'] = np.dot(x.T, da1)
+        grads['b1'] = np.sum(da1, axis=0)
+
+        return grads
+
+
+net = TwoLayerNet(input_size=784, hidden_size=50, output_size=10)
+
+train_loss_list = []
+iters_num = 10000
+train_size = x_train.shape[0]
+batch_size = 100
+learning_rate = 0.1
+
+epoch_size = max(train_size / batch_size, 1)
+
+for i in range(iters_num):
+    batch_mask = np.random.choice(train_size, batch_size)
+    x_batch = x_train[batch_mask]
+    t_batch = t_train[batch_mask]
+
+    # grad = net.numerical_gradient(x_batch, t_batch)
+    grad = net.gradient(x_batch, t_batch)
+
+    for key in ("W1", "b1", "W2", "b2"):
+        net.params[key] -= learning_rate * grad[key]
+
+    loss = net.loss(x_batch, t_batch)
+    if i % epoch_size == 0:
+        print("Train Accuracy = " + str(net.accuracy(x_train, t_train)))
+        print("Test Accuracy = " + str(net.accuracy(x_test, t_test)))
+
+    train_loss_list.append(loss)
+
+print(train_loss_list)
+# x = np.random.rand(100, 784)
+# t = np.random.rand(100, 10)
+# y = net.predict(x)
 # class SimpleNet:
 #     def __init__(self):
 #         self.W = np.random.randn(2, 3)
