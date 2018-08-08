@@ -1,3 +1,12 @@
+
+# ゼロから作る Deep Learning を写経するレポジトリ
+
+勉強しているだけです。
+
+オリジナルは https://github.com/oreilly-japan/deep-learning-from-scratch
+
+---
+
 # ゼロから作る Deep Learning
 
 ---
